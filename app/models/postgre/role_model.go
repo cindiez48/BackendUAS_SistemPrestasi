@@ -3,8 +3,8 @@ package postgre
 import "time"
 
 type Role struct {
-	ID          string    `gorm:"type:uuid;primaryKey"`
-	Name        string    `gorm:"size:50;unique;not null"`
-	Description string    `gorm:"type:text"`
-	CreatedAt   time.Time
+	ID          string    `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }

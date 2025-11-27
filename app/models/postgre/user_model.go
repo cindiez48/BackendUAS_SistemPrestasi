@@ -1,20 +1,17 @@
 package postgre
 
-import (
-	"time"
-
-	"gorm.io/gorm"
-)
+import "time"
 
 type User struct {
-	ID           string         `gorm:"type:uuid;primaryKey"`
-	Username     string         `gorm:"size:50;unique;not null"`
-	Email        string         `gorm:"size:100;unique;not null"`
-	PasswordHash string         `gorm:"size:255;not null"`
-	FullName     string         `gorm:"size:100;not null"`
-	RoleID       string         `gorm:"type:uuid"`
-	IsActive     bool           `gorm:"default:true"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	ID           string    `json:"id" db:"id"`
+	Username     string    `json:"username" db:"username"`
+	Email        string    `json:"email" db:"email"`
+	PasswordHash string    `json:"-" db:"password_hash"`
+	FullName     string    `json:"full_name" db:"full_name"`
+	RoleID       string    `json:"role_id" db:"role_id"`
+	IsActive     bool      `json:"is_active" db:"is_active"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+
+	RoleName string `json:"role_name,omitempty" db:"role_name"`
 }
