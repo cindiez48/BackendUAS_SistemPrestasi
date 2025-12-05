@@ -5,13 +5,23 @@ import "time"
 type Student struct {
 	ID           string    `json:"id" db:"id"`
 	UserID       string    `json:"user_id" db:"user_id"`
-	StudentID    string    `json:"student_id" db:"student_id"`
-	ProgramStudy string    `json:"program_study" db:"program_study"`
-	AcademicYear string    `json:"academic_year" db:"academic_year"`
-	AdvisorID    *string   `json:"advisor_id" db:"advisor_id"`
+	StudentID    string    `json:"studentId" db:"student_id"` // NIM
+	ProgramStudy string    `json:"programStudy" db:"program_study"`
+	AcademicYear string    `json:"academicYear" db:"academic_year"`
+	AdvisorID    *string   `json:"advisorId" db:"advisor_id"`
+	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
+}
 
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+type StudentDetail struct {
+	ID           string  `json:"id"`
+	UserID       string  `json:"userId"`
+	StudentID    string  `json:"studentId"`
+	FullName     string  `json:"fullName"`
+	Email        string  `json:"email"`
+	ProgramStudy string  `json:"programStudy"`
+	AdvisorName  *string `json:"advisorName"`
+}
 
-	// OPTIONAL join helper
-	AdvisorName string `json:"advisor_name,omitempty" db:"advisor_name"`
+type AssignAdvisorRequest struct {
+	LecturerID string `json:"lecturerId" validate:"required"`
 }

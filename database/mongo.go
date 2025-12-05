@@ -10,26 +10,27 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var MongoDB *mongo.Database
+// Global Variable
+var MongoClient *mongo.Client
+var MongoDb *mongo.Database
 
 func InitMongo() {
 	uri := os.Getenv("MONGO_URI")
-	dbName := os.Getenv("MONGO_DB")
+	dbName := os.Getenv("MONGO_DB_NAME")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI(uri)
-	client, err := mongo.Connect(ctx, clientOptions)
+	var err error
+	MongoClient, err = mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
-		log.Fatalf("Failed to create MongoDB client: %v", err)
+		log.Fatalf("Gagal membuat client Mongo: %v", err)
 	}
 
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	if err := MongoClient.Ping(ctx, nil); err != nil {
+		log.Fatalf("Gagal terhubung ke MongoDB: %v", err)
 	}
 
-	MongoDB = client.Database(dbName)
-	log.Println("MongoDB connected")
+	MongoDb = MongoClient.Database(dbName)
+	log.Println("✅ Berhasil terhubung ke MongoDB")
 }

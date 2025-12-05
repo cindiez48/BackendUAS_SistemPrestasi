@@ -1,18 +1,35 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"os"
 
-	"github.com/joho/godotenv"
+	"backenduas_sistemprestasi/config"
 	"backenduas_sistemprestasi/database"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("⚠️  .env not found, using system environment variables")
-	}
+	config.LoadEnv()
 
 	database.InitPostgres()
 	database.InitMongo()
+
+	defer database.DB.Close()
+	defer func() {
+		if err := database.MongoClient.Disconnect(context.Background()); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	app := config.NewApp()
+
+	port := os.Getenv("APP_PORT")
+	if port == "" {
+		port = "3000"
+	}
+	
+	fmt.Println("🚀 Server is running on port " + port)
+	log.Fatal(app.Listen(":" + port))
 }
