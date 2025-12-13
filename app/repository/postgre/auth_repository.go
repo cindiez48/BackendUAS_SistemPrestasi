@@ -1,4 +1,4 @@
-package repository
+package postgre
 
 import (
 	"database/sql"
@@ -39,31 +39,56 @@ func GetProfile(userId string) (*postgre.User, error) {
 
 }
 
-func Authenticate(email string, password string) (*postgre.User, error) {
-
-	var User postgre.User
+func Authenticate(username, password string) (*postgre.User, error) {
+	var user postgre.User
+	var studentID sql.NullString
+	var advisorID sql.NullString
 
 	err := database.DB.QueryRow(`
-			SELECT u.id, u.username, u.email, u.full_name, u.password_hash, u.role_id, r.name  
-			FROM users as u
-			JOIN roles as r on u.role_id = r.id
-			WHERE u.email = $1
-		`, email).Scan(
-		&User.ID, &User.Username, &User.Email, &User.FullName, &User.PasswordHash, &User.RoleID, &User.RoleName,
+		SELECT 
+			u.id,
+			u.username,
+			u.email,
+			u.full_name,
+			u.password_hash,
+			u.role_id,
+			r.name,
+			s.id AS student_id,
+			l.id AS lecturer_id
+		FROM users u
+		JOIN roles r ON u.role_id = r.id
+		LEFT JOIN students s ON s.user_id = u.id
+		LEFT JOIN lecturers l ON l.user_id = u.id
+		WHERE u.username = $1
+	`, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.FullName,
+		&user.PasswordHash,
+		&user.RoleID,
+		&user.RoleName,
+		&studentID,
+		&advisorID,
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, errors.New("email tidak ditemukan")
+		return nil, errors.New("username tidak ditemukan")
 	}
-
-	if !CheckPassword(password, User.PasswordHash) {
-		return nil, errors.New("password salah")
-	}
-
 	if err != nil {
 		return nil, err
 	}
 
-	return &User, err
+	if !CheckPassword(password, user.PasswordHash) {
+		return nil, errors.New("password salah")
+	}
 
+	if studentID.Valid {
+		user.StudentID = &studentID.String
+	}
+	if advisorID.Valid {
+		user.AdvisorID = &advisorID.String
+	}
+
+	return &user, nil
 }

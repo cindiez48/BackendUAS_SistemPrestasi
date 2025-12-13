@@ -2,108 +2,520 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
 	"time"
-
-	modelmongo "backenduas_sistemprestasi/app/models/mongo"
-	pmodel "backenduas_sistemprestasi/app/models/postgre"
-	mrepo "backenduas_sistemprestasi/app/repository/mongo"
-	postgre "backenduas_sistemprestasi/app/repository/postgre"
-
+	modelMongo "backenduas_sistemprestasi/app/models/mongo"
+	modelPg "backenduas_sistemprestasi/app/models/postgre"
+	repoMongo "backenduas_sistemprestasi/app/repository/mongo"
+	repoPg "backenduas_sistemprestasi/app/repository/postgre"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type AchievementService struct {
-	MongoRepo   *mrepo.AchievementMongoRepository
-	RefRepo     *postgre.AchievementReferenceRepository
-	StudentRepo *postgre.StudentRepository
-}
+func GetAllAchievementsService(c *fiber.Ctx) error {
 
-func NewAchievementService() *AchievementService {
-	return &AchievementService{
-		MongoRepo:   mrepo.NewAchievementMongoRepository(),
-		RefRepo:     postgre.NewAchievementReferenceRepository(),
-		StudentRepo: postgre.NewStudentRepository(),
+	nama_role := c.Locals("role_name")
+
+	if nama_role == "Mahasiswa" {
+		id_mahasiswa := c.Locals("student_id").(string)
+
+		result, err := repoPg.GetAllAchievementByStudentID(id_mahasiswa)
+
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"message": "tidak bisa boss",
+				"error":   err.Error(),
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"status": "success",
+			"data":   result,
+		})
 	}
-}
 
-func (s *AchievementService) CreateAchievement(ctx context.Context, studentID string, ach *modelmongo.Achievement) (refID string, mongoHex string, err error) {
-	_, serr := s.StudentRepo.GetByUserID(studentID)
-	if serr != nil {
-	}
-
-	objID, err := s.MongoRepo.Create(ctx, ach)
+	result, err := repoPg.GetAllAchievementsRepo()
 	if err != nil {
-		return "", "", err
+		return c.Status(404).JSON(fiber.Map{
+			"message": "tidak bisa boss",
+			"error":   err.Error(),
+		})
 	}
 
-	ref := &pmodel.AchievementReference{
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"data":   result,
+	})
+}
+
+func CreateAchievementService(c *fiber.Ctx) error {
+	var input modelMongo.Achievement
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
+	}
+
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	roleName, ok := c.Locals("role_name").(string)
+	if !ok || roleName == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	roleName = strings.ToLower(roleName)
+
+	var finalStudentID string
+
+	switch roleName {
+	case "admin":
+		if input.StudentID == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Admin wajib menyertakan studentId",
+			})
+		}
+		finalStudentID = input.StudentID
+
+	case "mahasiswa":
+		if input.StudentID != "" {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "Mahasiswa tidak boleh mengirim studentId",
+			})
+		}
+
+		studentID, err := repoPg.GetStudentByUserID(userID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"error": "Data mahasiswa tidak ditemukan",
+			})
+		}
+
+		finalStudentID = studentID
+	default:
+		return c.Status(403).JSON(fiber.Map{
+			"error": "Role tidak diizinkan membuat achievement",
+		})
+	}
+
+	input.StudentID = finalStudentID
+	input.CreatedAt = time.Now()
+	input.UpdatedAt = time.Now()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mongoID, err := repoMongo.InsertAchievement(ctx, input)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save to Mongo"})
+	}
+
+	ref := modelPg.AchievementReference{
 		ID:                 uuid.New().String(),
-		StudentID:          studentID,
-		MongoAchievementID: objID.Hex(),
+		StudentID:          finalStudentID,
+		MongoAchievementID: mongoID,
 		Status:             "draft",
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
-	if err := s.RefRepo.Create(ref); err != nil {
-		return "", "", err
+	if err := repoPg.CreateAchievementRef(ref); err != nil {
+		_ = repoMongo.DeleteAchievement(ctx, mongoID)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to save reference"})
 	}
 
-	return ref.ID, objID.Hex(), nil
+	return c.Status(201).JSON(fiber.Map{
+		"message": "Achievement draft created",
+		"data":    ref,
+	})
 }
 
-func (s *AchievementService) SubmitForVerification(refID string) error {
-	err := s.RefRepo.UpdateStatus(refID, "submitted", "", "")
-	return err
+// func UpdateAchievementService(c *fiber.Ctx) error {
+// 	refID := c.Params("id")
+// 	if refID == "" {
+// 		return c.Status(400).JSON(fiber.Map{
+// 			"error": "Achievement reference ID is required",
+// 		})
+// 	}
+
+// 	var input modelMongo.Achievement
+// 	if err := c.BodyParser(&input); err != nil {
+// 		return c.Status(400).JSON(fiber.Map{
+// 			"error": "Invalid input",
+// 		})
+// 	}
+
+// 	userID, ok := c.Locals("user_id").(string)
+// 	if !ok || userID == "" {
+// 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+// 	}
+
+// 	roleName, ok := c.Locals("role_name").(string)
+// 	if !ok || roleName == "" {
+// 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+// 	}
+
+// 	roleName = strings.ToLower(roleName)
+
+// 	// Ambil reference dari PostgreSQL
+// 	ref, err := repoPg.GetAchievementRefByID(refID)
+// 	if err != nil {
+// 		return c.Status(404).JSON(fiber.Map{
+// 			"error": "Achievement reference not found",
+// 		})
+// 	}
+
+// 	// Authorization check
+// 	if roleName == "mahasiswa" {
+// 		studentID, err := repoPg.GetStudentByUserID(userID)
+// 		if err != nil || studentID != ref.StudentID {
+// 			return c.Status(403).JSON(fiber.Map{
+// 				"error": "Forbidden",
+// 			})
+// 		}
+// 	} else if roleName != "admin" {
+// 		return c.Status(403).JSON(fiber.Map{
+// 			"error": "Role not allowed",
+// 		})
+// 	}
+
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+
+// 	// Update Mongo Data
+// 	input.UpdatedAt = time.Now()
+// 	err = mongoRepo.UpdateByID(ctx, ref.MongoAchievementID, input)
+// 	if err != nil {
+// 		return c.Status(500).JSON(fiber.Map{
+// 			"error": "Failed to update mongo achievement",
+// 		})
+// 	}
+
+// 	// Update reference updated_at
+// 	if err := repoPg.UpdateAchievementRefUpdatedAt(refID); err != nil {
+// 		return c.Status(500).JSON(fiber.Map{
+// 			"error": "Failed to update reference",
+// 		})
+// 	}
+
+// 	return c.JSON(fiber.Map{
+// 		"message": "Achievement updated successfully",
+// 	})
+// }
+
+func GetAchievementDetailService(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	ref, err := repoPg.GetAchievementRefByID(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"error": "Achievement not found",
+		})
+	}
+
+	ctx := context.Background()
+	achievement, err := repoMongo.FindAchievementByID(ctx, ref.MongoAchievementID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error":    "Detail data missing",
+			"mongo_ID": ref.MongoAchievementID,
+			"message":  err.Error(),
+		})
+	}
+
+	response := modelMongo.AchievementResponse{
+		ID:          ref.ID,
+		MongoID:     ref.MongoAchievementID,
+		StudentID:   ref.StudentID,
+		StudentName: ref.StudentName,
+		Status:      ref.Status,
+		Details:     achievement.Details,
+	}
+
+	return c.JSON(fiber.Map{"data": response})
 }
 
-func (s *AchievementService) Verify(refID string, verifierUserID string) error {
-	// set verified
-	err := s.RefRepo.UpdateStatus(refID, "verified", "", verifierUserID)
-	return err
+func SubmitAchievementService(c *fiber.Ctx) error {
+
+	achievement_references_id := c.Params("achievement_references_id")
+
+	student_id := c.Locals("student_id")
+	roleName := c.Locals("role_name")
+	fmt.Println(roleName)
+
+	if student_id == "" {
+		return c.Status(404).JSON(fiber.Map{
+			"message": "id mahasiswa tidak ada",
+		})
+	}
+
+	if roleName != "Admin" && roleName != "Mahasiswa" {
+		return c.Status(403).JSON(fiber.Map{
+			"error": "Role gak boleh",
+		})
+	}
+
+	studentIDfromAchievementReferences, err := repoPg.GetStudentIdFromAchievementReferences(achievement_references_id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"message": "tidak dapat menemukan student_id di table achievement_references",
+		})
+	}
+
+	if student_id != studentIDfromAchievementReferences {
+		return c.Status(403).JSON(fiber.Map{
+			"message": "Mahasiswa hanya boleh mengakses achievement miliknya sendiri",
+		})
+	}
+
+	result, err := repoPg.SubmitAchievementRepo(achievement_references_id)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "tidak dapat submit achievement",
+			"error":   err.Error(),
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"status":  "success",
+		"message": "berhasil submit achievement",
+		"data":    result,
+	})
 }
 
-func (s *AchievementService) Reject(refID string, note string, verifierUserID string) error {
-	err := s.RefRepo.UpdateStatus(refID, "rejected", note, verifierUserID)
-	return err
-}
+func VerifyAchievementService(c *fiber.Ctx) error {
 
-func (s *AchievementService) DeleteDraft(ctx context.Context, refID string, mongoHex string) error {
-	if mongoHex != "" {
-		objID, err := primitive.ObjectIDFromHex(mongoHex)
-		if err == nil {
-			_ = s.MongoRepo.SoftDelete(ctx, objID)
+	achievement_references_id := c.Params("achievement_references_id")
+	roleName := c.Locals("role_name")
+
+	if roleName == "Mahasiswa" {
+		return c.Status(403).JSON(fiber.Map{
+			"message": "Hanya Admin yang bisa verifikasi achievement",
+		})
+	}
+
+	if roleName == "Dosen Wali" {
+
+		advisorID, ok := c.Locals("advisor_id").(string)
+		if !ok || advisorID == "" {
+			return c.Status(401).JSON(fiber.Map{
+				"message": "advisor_id pada token tidak valid",
+			})
+		}
+
+		refAdvisorID, err := repoPg.GetAdvisorIDByAchievementRef(achievement_references_id)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"message": "achievement tidak ditemukan",
+				"error":   err.Error(),
+			})
+		}
+
+		if advisorID != refAdvisorID {
+			return c.Status(403).JSON(fiber.Map{
+				"message": "Anda bukan dosen wali dari achievement ini",
+			})
 		}
 	}
 
-	if err := s.RefRepo.MarkDeleted(refID); err != nil {
-		return err
+	result, err := repoPg.VerifyAchievementRepo(achievement_references_id)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "tidak dapat verify achievement_references",
+		})
 	}
 
-	return nil
+	return c.Status(200).JSON(fiber.Map{
+		"status":  "success",
+		"message": "berhasil verify achievement",
+		"data":    result,
+	})
+
 }
 
-func (s *AchievementService) GetAchievementDetail(ctx context.Context, ref pmodel.AchievementReference) (map[string]interface{}, error) {
-	out := map[string]interface{}{
-		"reference":   ref,
-		"achievement": nil,
+func RejectAchievementService(c *fiber.Ctx) error {
+
+	achievement_references_id := c.Params("achievement_references_id")
+	roleName := c.Locals("role_name").(string)
+	user_id := c.Locals("user_id").(string)
+
+	if roleName == "Mahasiswa" {
+		return c.Status(403).JSON(fiber.Map{
+			"message": "Hanya Admin yang bisa menolak achievement",
+		})
+	}
+	if roleName == "Dosen Wali" {
+		advisorID, ok := c.Locals("advisor_id").(string)
+		if !ok || advisorID == "" {
+			return c.Status(401).JSON(fiber.Map{
+				"message": "advisor_id pada token tidak valid",
+			})
+		}
+
+		refAdvisorID, err := repoPg.GetAdvisorIDByAchievementRef(achievement_references_id)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{
+				"message": "achievement tidak ditemukan",
+				"error":   err.Error(),
+			})
+		}
+
+		if advisorID != refAdvisorID {
+			return c.Status(403).JSON(fiber.Map{
+				"message": "Anda bukan dosen wali dari achievement ini",
+			})
+		}
 	}
 
-	if ref.MongoAchievementID == "" {
-		return out, nil
+	var request modelPg.RejectAchievementRequest
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Request body tidak valid",
+		})
 	}
 
-	objID, err := primitive.ObjectIDFromHex(ref.MongoAchievementID)
+	hasil, err := repoPg.RejectAchievementRepo(achievement_references_id, request.RejectionNote, user_id)
 	if err != nil {
-		return out, nil
+		return c.Status(400).JSON(fiber.Map{
+			"message": "tidak dapat reject achievement_references",
+			"error":   err.Error(),
+		})
 	}
 
-	ach, err := s.MongoRepo.FindByID(ctx, objID)
+	return c.Status(200).JSON(fiber.Map{
+		"message": "berhasil reject achievement",
+		"data":    hasil,
+	})
+
+}
+
+func UploadAttachmentAchievementService(c *fiber.Ctx) error {
+	achievementReferencesID := c.FormValue("achievement_references_id")
+	if achievementReferencesID == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "achievement_references_id tidak boleh kosong",
+		})
+	}
+
+	fileHeader, err := c.FormFile("attachment")
 	if err != nil {
-		return out, err
+		return c.Status(400).JSON(fiber.Map{
+			"message": "File attachment tidak ditemukan",
+		})
 	}
 
-	out["achievement"] = ach
-	return out, nil
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": "Gagal membuka file"})
+	}
+	defer file.Close()
+
+	folder := fmt.Sprintf("./uploads/achievements/%s/", achievementReferencesID)
+
+	if _, err := os.Stat(folder); os.IsNotExist(err) {
+		os.MkdirAll(folder, 0755)
+	}
+
+	fileName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), fileHeader.Filename)
+	filePath := folder + fileName
+
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": "Gagal membuat file"})
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": "Gagal menyimpan file"})
+	}
+
+	folderName, err := repoMongo.UploadAttachmentAchievemenRepo(achievementReferencesID, fileName)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"message": "Gagal menyimpan metadata ke database",
+		})
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message":   "Upload berhasil",
+		"file_name": fileName,
+		"folder":    folderName,
+		"path":      filePath,
+	})
+}
+
+func GetAchievementHistoryService(c *fiber.Ctx) error {
+	achievement_references_id := c.Params("achievement_references_id")
+
+	ref, err := repoPg.GetAchievementRefByID(achievement_references_id)
+	if ref == nil {
+		return c.Status(404).JSON(fiber.Map{
+			"message": "terjadi kesalahan ketika mengambil data achievement",
+		})
+	}
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"message": "tidak dapat mengambil data achievement",
+			"error":   err.Error(),
+		})
+	}
+
+	achievement, err := repoMongo.FindAchievementByID(context.Background(), ref.MongoAchievementID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"message": "tidak dapat mengambil data achievement",
+			"error":   err.Error(),
+		})
+	}
+
+	history := []modelPg.HistoryItem{}
+
+	history = append(history, modelPg.HistoryItem{
+		Status:    "draft",
+		Timestamp: ref.CreatedAt,
+		Note:      "",
+	})
+
+	if ref.SubmittedAt != nil {
+		history = append(history, modelPg.HistoryItem{
+			Status:    "submitted",
+			Timestamp: *ref.SubmittedAt,
+			Note:      "",
+		})
+	}
+
+	if ref.VerifiedAt != nil {
+		history = append(history, modelPg.HistoryItem{
+			Status:    "verified",
+			Timestamp: *ref.VerifiedAt,
+			Note:      "",
+		})
+	}
+
+	if ref.Status == "rejected" {
+		history = append(history, modelPg.HistoryItem{
+			Status:    "rejected",
+			Timestamp: ref.UpdatedAt,
+			Note: func() string {
+				if ref.RejectionNote != nil {
+					return *ref.RejectionNote
+				}
+				return ""
+			}(),
+		})
+	}
+
+	response := &modelPg.HistoryResponse{
+		Reference:   ref,
+		Achievement: &achievement,
+		History:     history,
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"data":   response,
+		"status": "success",
+	})
 }

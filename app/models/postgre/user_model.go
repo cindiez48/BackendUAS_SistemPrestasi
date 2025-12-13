@@ -4,6 +4,8 @@ import "time"
 
 type User struct {
 	ID           string    `json:"id" db:"id"`
+	StudentID    *string   `json:"student_id,omitempty" db:"student_id"`
+	AdvisorID    *string   `json:"advisor_id,omitempty" db:"advisor_id"`
 	Username     string    `json:"username" db:"username"`
 	Email        string    `json:"email" db:"email"`
 	PasswordHash string    `json:"-" db:"password_hash"`
@@ -44,7 +46,7 @@ type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6"`
 	FullName string `json:"fullName" validate:"required"`
-	RoleID   string `json:"roleId" validate:"required"`	
+	RoleID   string `json:"roleId" validate:"required"` 
 }
 
 type UpdateUserRequest struct {
@@ -52,7 +54,7 @@ type UpdateUserRequest struct {
 	Email    string `json:"email" validate:"email"`
 	FullName string `json:"fullName"`
 	Password string `json:"password"` 
-	IsActive *bool  `json:"isActive"`
+	IsActive *bool  `json:"isActive"` 
 }
 
 type AssignRoleRequest struct {

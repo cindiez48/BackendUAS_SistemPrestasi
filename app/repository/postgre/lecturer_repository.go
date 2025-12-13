@@ -1,10 +1,21 @@
-package repository
+package postgre
+
 
 import (
 	"database/sql"
 	modelPostgre "backenduas_sistemprestasi/app/models/postgre"
 	"backenduas_sistemprestasi/database"
 )
+
+func FindLecturerByUserID(userID string) (*modelPostgre.Lecturer, error) {
+    var l modelPostgre.Lecturer
+    query := `SELECT id, user_id, lecturer_id, department, created_at FROM lecturers WHERE user_id = $1`
+    err := database.DB.QueryRow(query, userID).Scan(&l.ID, &l.UserID, &l.LecturerID, &l.Department, &l.CreatedAt)
+    if err != nil {
+        return nil, err
+    }
+    return &l, nil
+}
 
 func FindAllLecturers() ([]modelPostgre.LecturerDetail, error) {
 	query := `
@@ -30,7 +41,6 @@ func FindAllLecturers() ([]modelPostgre.LecturerDetail, error) {
 	return lecturers, nil
 }
 
-// FindLecturerByID mencari dosen berdasarkan ID
 func FindLecturerByID(id string) (*modelPostgre.Lecturer, error) {
 	var l modelPostgre.Lecturer
 
@@ -43,7 +53,6 @@ func FindLecturerByID(id string) (*modelPostgre.Lecturer, error) {
 	return &l, nil
 }
 
-// FindLecturerAdvisees mencari mahasiswa bimbingan dari dosen tertentu
 func FindLecturerAdvisees(lecturerID string) ([]modelPostgre.StudentDetail, error) {
 	query := `
         SELECT s.id, s.user_id, s.student_id, u.full_name, u.email, s.program_study, u_lec.full_name as advisor_name

@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Global Variable
 var MongoClient *mongo.Client
 var MongoDb *mongo.Database
 

@@ -1,0 +1,126 @@
+package mongo
+
+import (
+	model "backenduas_sistemprestasi/app/models/mongo"
+	"backenduas_sistemprestasi/database"
+	"context"
+	"fmt"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+type AchievementRepo struct {
+	Collection *mongo.Collection
+}
+
+func NewAchievementRepo(db *mongo.Database) *AchievementRepo {
+	return &AchievementRepo{
+		Collection: db.Collection("achievements"),
+	}
+}
+
+func (r *AchievementRepo) Insert(ctx context.Context, data model.Achievement) (string, error) {
+	result, err := r.Collection.InsertOne(ctx, data)
+	if err != nil {
+		return "", err
+	}
+	oid := result.InsertedID.(primitive.ObjectID)
+	return oid.Hex(), nil
+}
+
+func InsertAchievement(ctx context.Context, input model.Achievement) (string, error) {
+	collection := database.MongoDb.Collection("achievements")
+
+	result, err := collection.InsertOne(ctx, input)
+	if err != nil {
+		return "", err
+	}
+
+	return result.InsertedID.(primitive.ObjectID).Hex(), nil
+}
+
+func DeleteAchievement(ctx context.Context, mongoID string) error {
+	collection := database.MongoDb.Collection("achievements")
+
+	_, err := collection.DeleteOne(ctx, bson.M{
+		"_id": mongoID,
+	})
+
+	return err
+}
+
+func UploadAttachmentAchievemenRepo(achievementReferencesID string, fileName string) (string, error) {
+	collection := database.MongoDb.Collection("achievement_attachments")
+
+	folder := fmt.Sprintf("%s", achievementReferencesID)
+
+	doc := bson.M{
+		"achievement_references_id": achievementReferencesID,
+		"file_name":                 fileName,
+		"folder":                    folder,
+		"created_at":                time.Now(),
+	}
+
+	_, err := collection.InsertOne(context.Background(), doc)
+	if err != nil {
+		return "", err
+	}
+
+	return folder, nil
+}
+
+func FindAchievementByID(ctx context.Context, id string) (model.AchievementResponseV2, error) {
+	collection := database.MongoDb.Collection("achievements")
+
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return model.AchievementResponseV2{}, err
+	}
+
+	var achievement model.Achievement
+	err = collection.FindOne(
+		ctx,
+		bson.M{"_id": oid},
+	).Decode(&achievement)
+
+	if err != nil {
+		return model.AchievementResponseV2{}, err
+	}
+
+	response := model.AchievementResponseV2{
+		Achievement: achievement,
+		Details:     achievement.Details,
+	}
+
+	return response, nil
+}
+
+func (r *AchievementRepo) Delete(ctx context.Context, id string) error {
+	oid, _ := primitive.ObjectIDFromHex(id)
+	_, err := r.Collection.DeleteOne(ctx, bson.M{"_id": oid})
+	return err
+}
+
+func UpdateAchievementByID(
+	ctx context.Context,
+	mongoID string,
+	input model.Achievement,
+) error {
+
+	collection := database.MongoDb.Collection("achievements")
+
+	objectID, err := primitive.ObjectIDFromHex(mongoID)
+	if err != nil {
+		return err
+	}
+
+	update := bson.M{
+		"$set": input,
+	}
+
+	_, err = collection.UpdateByID(ctx, objectID, update)
+	return err
+}

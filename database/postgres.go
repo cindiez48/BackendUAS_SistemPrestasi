@@ -9,7 +9,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Global Variable 
 var DB *sql.DB
 
 func InitPostgres() {

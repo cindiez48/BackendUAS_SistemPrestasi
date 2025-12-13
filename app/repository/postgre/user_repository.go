@@ -1,4 +1,4 @@
-package repository
+package postgre
 
 import (
 	"backenduas_sistemprestasi/app/models/postgre"

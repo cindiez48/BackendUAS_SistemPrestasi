@@ -2,14 +2,15 @@ package service
 
 import (
 	modelPostgre "backenduas_sistemprestasi/app/models/postgre"
-	repository "backenduas_sistemprestasi/app/repository"
+	repoPg "backenduas_sistemprestasi/app/repository/postgre"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 
+
 func GetAllUsers(c *fiber.Ctx) error {
-	users, err := repository.FindAll()
+	users, err := repoPg.FindAll()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal mengambil data user"})
 	}
@@ -18,7 +19,7 @@ func GetAllUsers(c *fiber.Ctx) error {
 
 func GetUserByID(c *fiber.Ctx) error {
 	id := c.Params("id")
-	user, err := repository.UserFindByID(id)
+	user, err := repoPg.UserFindByID(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "User tidak ditemukan"})
 	}
@@ -41,7 +42,7 @@ func CreateUser(c *fiber.Ctx) error {
 		RoleID:       req.RoleID,
 	}
 
-	if err := repository.Create(newUser); err != nil {
+	if err := repoPg.Create(newUser); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal membuat user (Duplicate username/email?)"})
 	}
 
@@ -55,31 +56,23 @@ func UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid input"})
 	}
 
-	existingUser, err := repository.UserFindByID(id)
+	existingUser, err := repoPg.UserFindByID(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "User tidak ditemukan"})
 	}
 
-	if req.Username != "" {
-		existingUser.Username = req.Username
-	}
-	if req.Email != "" {
-		existingUser.Email = req.Email
-	}
-	if req.FullName != "" {
-		existingUser.FullName = req.FullName
-	}
-	if req.IsActive != nil {
-		existingUser.IsActive = *req.IsActive
-	}
+	if req.Username != "" { existingUser.Username = req.Username }
+	if req.Email != "" { existingUser.Email = req.Email }
+	if req.FullName != "" { existingUser.FullName = req.FullName }
+	if req.IsActive != nil { existingUser.IsActive = *req.IsActive }
 
-	if err := repository.Update(id, *existingUser); err != nil {
+	if err := repoPg.Update(id, *existingUser); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal update user"})
 	}
 
 	if req.Password != "" {
 		hashed, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		repository.UpdatePassword(id, string(hashed))
+		repoPg.UpdatePassword(id, string(hashed))
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "User berhasil diupdate"})
@@ -87,7 +80,7 @@ func UpdateUser(c *fiber.Ctx) error {
 
 func DeleteUser(c *fiber.Ctx) error {
 	id := c.Params("id")
-	if err := repository.Delete(id); err != nil {
+	if err := repoPg.Delete(id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal menghapus user"})
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "User berhasil dihapus"})
@@ -100,7 +93,7 @@ func AssignRole(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Invalid input"})
 	}
 
-	if err := repository.UpdateRole(id, req.RoleID); err != nil {
+	if err := repoPg.UpdateRole(id, req.RoleID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal mengubah role"})
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "message": "Role berhasil diubah"})

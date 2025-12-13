@@ -17,11 +17,9 @@ func NewApp() *fiber.App {
 		},
 	})
 
-	// Middleware
 	app.Use(cors.New())
-	app.Use(logger.New(LoggerConfig())) // LoggerConfig dari file logger.go sebelumnya
+	app.Use(logger.New(LoggerConfig()))
 
-	// Panggil Setup Routes di sini (Sesuai gaya screenshot Anda)
 	routes.SetupRoutes(app)
 
 	return app
