@@ -1,0 +1,4 @@
+[20:41:29] 200 - POST /api/v1/auth/login -    195.2693ms
+[20:43:13] 403 - POST /api/v1/achievements/aca32afc-293b-4a41-93d3-c6352f01ad37/submit -      4.5366ms
+[20:53:27] 500 - POST /api/v1/achievements -     18.7901ms
+[20:53:40] 200 - GET /api/v1/achievements -      21.001ms

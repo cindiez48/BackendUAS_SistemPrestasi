@@ -9,23 +9,13 @@ type AchievementReference struct {
 	ID                 string     `json:"id" db:"id"`
 	StudentID          string     `json:"student_id" db:"student_id"`
 	MongoAchievementID string     `json:"mongo_achievement_id" db:"mongo_achievement_id"`
-	Status             string     `json:"status" db:"status"` 
+	Status             string     `json:"status" db:"status"`
 	SubmittedAt        *time.Time `json:"submitted_at" db:"submitted_at"`
 	VerifiedAt         *time.Time `json:"verified_at" db:"verified_at"`
 	VerifiedBy         *string    `json:"verified_by" db:"verified_by"`
 	RejectionNote      *string    `json:"rejection_note" db:"rejection_note"`
 	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at" db:"updated_at"`
-
-	History []AchievementHistory `json:"history"`
-}
-type AchievementHistory struct {
-	ID        string    `json:"id" db:"id"`
-	RefID     string    `json:"ref_id" db:"ref_id"`
-	Action    string    `json:"action" db:"action"`      
-	Note      string    `json:"note" db:"note"`
-	ActorID   string    `json:"actor_id" db:"actor_id"`  
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type HistoryItem struct {
@@ -36,7 +26,7 @@ type HistoryItem struct {
 
 type HistoryResponse struct {
 	Reference   *AchievementRefWithStudent  
-	Achievement *mongo.AchievementResponseV2 `json:"achievement"`
+	Achievement *mongo.Achievement `json:"achievement"`
 	History     []HistoryItem                `json:"history"`
 }
 

@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"strings"
 
 	"backenduas_sistemprestasi/helper"
@@ -12,21 +11,26 @@ import (
 
 func Protect() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "Unauthorized: Token wajib ada",
 			})
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Unauthorized: Format token salah",
-			})
+		var tokenString string
+
+		if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+			tokenString = strings.TrimSpace(authHeader[7:])
+		} else {
+			tokenString = authHeader
 		}
 
-		tokenString := parts[1]
+		if tokenString == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Unauthorized: Token tidak valid",
+			})
+		}
 
 		if memory.IsBlacklisted(tokenString) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -37,7 +41,7 @@ func Protect() fiber.Handler {
 		claims, err := helper.ValidateJWT(tokenString)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Unauthorized: Token tidak valid",
+				"message": "Unauthorized: Token tidak valid atau expired",
 			})
 		}
 
@@ -61,24 +65,4 @@ func Protect() fiber.Handler {
 
 		return c.Next()
 	}
-}
-
-
-func HasPermission(requiredPerm string) fiber.Handler {
-    return func(c *fiber.Ctx) error {
-        userPerms, ok := c.Locals("permissions").([]string)
-        if !ok {
-            return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "Forbidden: Permission tidak ditemukan"})
-        }
-
-        for _, p := range userPerms {
-            if p == requiredPerm {
-                return c.Next() 
-            }
-        }
-
-        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-            "message": fmt.Sprintf("Forbidden: Anda tidak memiliki akses '%s'", requiredPerm),
-        })
-    }
 }

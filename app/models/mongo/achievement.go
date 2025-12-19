@@ -33,7 +33,21 @@ type AchievementResponse struct {
 	RejectionNote      *string                `json:"rejection_note"`
 }
 
-type AchievementResponseV2 struct {
-	Achievement	Achievement         `json:"achievement"`
-	Details     map[string]interface{} `json:"details,omitempty"`
+type CreateAchievementRequest struct {
+	StudentID       string                 `json:"studentId"`
+	AchievementType string                 `json:"achievementType"`
+	Title           string                 `json:"title"`
+	Description     string                 `json:"description"`
+	Points          int                    `json:"points"`
+	Details         map[string]interface{} `json:"details"`
+	Tags            []string               `json:"tags"`
+}
+
+type UpdateAchievementRequest struct {
+	AchievementType string                 `json:"achievementType,omitempty"`
+	Title           string                 `json:"title,omitempty"`
+	Description     string                 `json:"description,omitempty"`
+	Points          *int                   `json:"points,omitempty"`
+	Details         map[string]interface{} `json:"details,omitempty"`
+	Tags            []string               `json:"tags,omitempty"`
 }

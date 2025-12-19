@@ -22,6 +22,11 @@ type StudentDetail struct {
 	AdvisorName  *string `json:"advisorName"`
 }
 
+type StudentAchievement struct {
+	StudentDetail
+	AchievementReference
+}
+
 type AssignAdvisorRequest struct {
 	LecturerID string `json:"lecturerId" validate:"required"`
 }

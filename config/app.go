@@ -6,6 +6,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
+
+	_ "backenduas_sistemprestasi/docs"
 )
 
 func NewApp() *fiber.App {
@@ -17,10 +20,20 @@ func NewApp() *fiber.App {
 		},
 	})
 
+	// Middleware
 	app.Use(cors.New())
 	app.Use(logger.New(LoggerConfig()))
 
-	routes.SetupRoutes(app)
+	// swagger
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+
+	// routes
+	routes.UsersRoute(app)
+	routes.AuthRoute(app)
+	routes.AchievementRoutes(app)
+	routes.LecturerRoute(app)
+	routes.StudentRoutes(app)
+	routes.Analytics(app)
 
 	return app
 }
